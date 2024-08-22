@@ -60,18 +60,13 @@ while True:
     setx = range_map(throttle.value, 0, ANGLE_USAGE_TH, -127, 127)
     sety = range_map(brake.value, 0, ANGLE_USAGE_BK, -127, 127)
 
-    if as5600.MD:
-        if not as5600.ML and not as5600.MH:
-            print('Working correctly')
+    if as5600.MD and not as5600.ML and not as5600.MH:
         setz = range_map(as5600.ANGLE, 0, ANGLE_USAGE_AS5600, -127, 127)
         
         if abs(setz) <= DEAD_ZONE:
             setz = 0
 
         gp.move_joysticks(z=int(setz))
-        print('Axis Z moved')
-    #print('Set x:', setx)
-    #print('Set y:', sety)
     
     # Use a dead zone
     if abs(setx) <= DEAD_ZONE + 1:
