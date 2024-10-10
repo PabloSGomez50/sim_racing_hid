@@ -37,6 +37,7 @@ ANGLE_USAGE_AS5600 = 4095
 # Setup for Analog Joystick as X and Y
 throttle = analogio.AnalogIn(board.GP26)
 brake = analogio.AnalogIn(board.GP27)
+setz = 0
 
 prev_t = 0
 dt = 0
@@ -61,12 +62,14 @@ while True:
     sety = range_map(brake.value, 0, ANGLE_USAGE_BK, -127, 127)
 
     if as5600.MD and not as5600.ML and not as5600.MH:
+        #print(as5600.ANGLE)
+        last_setz = setz
         setz = range_map(as5600.ANGLE, 0, ANGLE_USAGE_AS5600, -127, 127)
         
         if abs(setz) <= DEAD_ZONE:
             setz = 0
-
-        gp.move_joysticks(z=int(setz))
+        if last_setz * setz >= 0:
+            gp.move_joysticks(z=int(setz))
     
     # Use a dead zone
     if abs(setx) <= DEAD_ZONE + 1:
@@ -74,9 +77,10 @@ while True:
     if abs(sety) <= DEAD_ZONE:
         sety = 0
         
-    gp.move_joysticks(
-        x=int(setx),
-        y=int(sety)
-    )
+    #gp.move_joysticks(
+    #    x=int(setx),
+    #    y=int(sety)
+    #)
  
     sleep(0.01)
+    #sleep(0.5)
