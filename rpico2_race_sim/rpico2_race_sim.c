@@ -127,10 +127,12 @@
  
          tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
          has_keyboard_key = true;
-       }else
+       }
+       else
        {
          // send empty key report if previously has key pressed
-         if (has_keyboard_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+         if (has_keyboard_key)
+          tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
          has_keyboard_key = false;
        }
      }
@@ -209,19 +211,20 @@
    if ( board_millis() - start_ms < interval_ms) return; // not enough time
    start_ms += interval_ms;
  
-   uint32_t const btn = board_button_read();
+  //  uint32_t const btn = board_button_read();
  
-   // Remote wakeup
-   if ( tud_suspended() && btn )
-   {
-     // Wake up host if we are in suspend mode
-     // and REMOTE_WAKEUP feature is enabled by host
-     tud_remote_wakeup();
-   }else
-   {
-     // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
-     send_hid_report(REPORT_ID_KEYBOARD, btn);
-   }
+  //  // Remote wakeup
+  //  if ( tud_suspended() && btn )
+  //  {
+  //    // Wake up host if we are in suspend mode
+  //    // and REMOTE_WAKEUP feature is enabled by host
+  //    tud_remote_wakeup();
+  //  }else
+  //  {
+  //    // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
+  //    send_hid_report(REPORT_ID_KEYBOARD, btn);
+  //  }
+
  }
  
  // Invoked when sent REPORT successfully to host
@@ -298,7 +301,8 @@
    if (!blink_interval_ms) return;
  
    // Blink every interval ms
-   if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+   if ( board_millis() - start_ms < blink_interval_ms)
+    return; // not enough time
    start_ms += blink_interval_ms;
  
    board_led_write(led_state);
