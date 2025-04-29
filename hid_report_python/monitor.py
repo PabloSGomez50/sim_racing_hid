@@ -7,8 +7,9 @@ DEVICE_PID = 0x4004  # Example Product ID
 def read_hid_reports(vid, pid):
     try:
         # Open the HID device
-        device = hid.Device(vid, pid)
-        print(f"Connected to device: {device.manufacturer} {device.product}")
+        device = hid.device()
+        device.open(vid, pid)
+        print(f"Connected to device: {device.get_manufacturer_string()} {device.get_product_string()}")
 
         # Set non-blocking mode
         device.set_nonblocking(True)
@@ -19,6 +20,7 @@ def read_hid_reports(vid, pid):
             data = device.read(64)  # Adjust report size as needed
             if data:
                 print(f"Received report: {data}")
+                
     except Exception as e:
         print(f"Error: {e}")
     finally:
@@ -29,4 +31,7 @@ def read_hid_reports(vid, pid):
             pass
 
 if __name__ == "__main__":
+    hid_devices = hid.enumerate()
+    for device in hid_devices:
+        print(f"Device: VID={device['vendor_id']:04X}, PID={device['product_id']:04X}")
     read_hid_reports(DEVICE_VID, DEVICE_PID)
