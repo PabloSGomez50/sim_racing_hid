@@ -23,15 +23,61 @@
  *
  */
 
- #include <stdlib.h>
- #include <stdio.h>
- #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "pico/stdlib.h"
  
- #include "bsp/board_api.h"
- #include "tusb.h"
+#include "bsp/board_api.h"
+#include "tusb.h"
+
+#include "usb_descriptors.h"
+#include "hardware/adc.h"
+
+
+#define ADC_BRAKE_CH    0
+#define ADC_THROTTLE_CH 1
+#define ADC0_PIN 26
+
+#define BTN_BRAKE_PIN    14
+#define BTN_THROTTLE_PIN 15
+
  
- #include "usb_descriptors.h"
+//  void send_hid_gamepad_report(uint32_t btn, int8_t x_axis);
  
+ void hardware_init(void) {
+   adc_init();
+   adc_gpio_init(ADC0_PIN + ADC_BRAKE_CH);
+   adc_gpio_init(ADC0_PIN + ADC_THROTTLE_CH);
+   adc_select_input(ADC_BRAKE_CH);
+ 
+   gpio_init(BTN_BRAKE_PIN);
+   gpio_set_dir(BTN_BRAKE_PIN, GPIO_IN);
+   
+   gpio_init(BTN_THROTTLE_PIN);
+   gpio_set_dir(BTN_THROTTLE_PIN, GPIO_IN);
+ }
+
+ void send_hid_gamepad_report(uint32_t btn, int8_t x_axis) {
+  if (!tud_hid_ready())
+    return;
+
+  // static bool has_gamepad_key = false;
+  hid_gamepad_report_t report = {
+      .x = x_axis,
+      .y = 0,
+      .z = 0,
+      .rz = 0,
+      .rx = 0,
+      .ry = 0,
+      .hat = 0,
+      .buttons = btn
+    };
+
+    tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
+  
+}
+
  //--------------------------------------------------------------------+
  // MACRO CONSTANT TYPEDEF PROTYPES
  //--------------------------------------------------------------------+
@@ -51,12 +97,13 @@
  
  void led_blinking_task(void);
  void hid_task(void);
+
  
  /*------------- MAIN -------------*/
  int main(void)
  {
    board_init();
- 
+   hardware_init();
    // init device stack on configured roothub port
    tud_init(BOARD_TUD_RHPORT);
  
@@ -210,21 +257,24 @@
  
    if ( board_millis() - start_ms < interval_ms) return; // not enough time
    start_ms += interval_ms;
- 
-  //  uint32_t const btn = board_button_read();
- 
-  //  // Remote wakeup
-  //  if ( tud_suspended() && btn )
-  //  {
-  //    // Wake up host if we are in suspend mode
-  //    // and REMOTE_WAKEUP feature is enabled by host
-  //    tud_remote_wakeup();
-  //  }else
-  //  {
-  //    // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
-  //    send_hid_report(REPORT_ID_KEYBOARD, btn);
-  //  }
 
+   adc_select_input(ADC_BRAKE_CH);
+   int8_t steer_value = (int8_t) ((int16_t) (adc_read() >> 4)) - 128; // 12-bit ADC value
+   if (steer_value < -127) 
+     steer_value = -127;
+   if (steer_value > 127) 
+     steer_value = 127;
+   int throttle_state = gpio_get(BTN_THROTTLE_PIN);
+   int brake_state = gpio_get(BTN_BRAKE_PIN);
+ 
+ 
+   uint32_t btn = throttle_state | (brake_state << 1); // Combine throttle and brake states into a single button mask
+   send_hid_gamepad_report(btn, steer_value);
+ 
+   // Wake up host if we are in suspend mode
+   // and REMOTE_WAKEUP feature is enabled by host
+   if ( tud_suspended() )
+      tud_remote_wakeup();
  }
  
  // Invoked when sent REPORT successfully to host
@@ -298,7 +348,8 @@
    static bool led_state = false;
  
    // blink is disabled
-   if (!blink_interval_ms) return;
+   if (!blink_interval_ms)
+    return;
  
    // Blink every interval ms
    if ( board_millis() - start_ms < blink_interval_ms)

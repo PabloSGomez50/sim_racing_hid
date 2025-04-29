@@ -68,6 +68,7 @@ target_include_directories(rpico2_race_sim PRIVATE
 # Add any user requested libraries
 target_link_libraries(rpico2_race_sim 
         hardware_i2c
+        hardware_adc
         )
 
 pico_add_extra_outputs(rpico2_race_sim)
