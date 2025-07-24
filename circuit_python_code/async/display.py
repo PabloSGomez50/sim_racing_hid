@@ -39,7 +39,7 @@ def init_display_obj():
 def init_display_background(display):
 
     splash = displayio.Group()
-    display.show(splash)
+    display.root_group = splash
 
     # Draw background
     color_bitmap = displayio.Bitmap(const.D_WIDTH, const.D_HEIGHT, 1)
@@ -71,7 +71,7 @@ def init_display_background(display):
 
 def init_display_pedals(display):
     pedal_group = displayio.Group(scale=1, x=const.D_BORDER * 3 // 2, y=const.D_BORDER)
-    display.append(pedal_group)
+    display.root_group.append(pedal_group)
     pedal_group.append(vectorio.Rectangle(
         width=PEDAL_WIDTH,
         height=PEDAL_HEIGHT,
@@ -152,6 +152,7 @@ def draw_pedals(group, brk: int, thr: int):
 
 def main():
     display_obj = init_display_obj()
+    print(dir(display_obj))
     splash = init_display_background(display_obj)
     pedal_group = init_display_pedals(display_obj)
     text_group = init_display_text(splash)
