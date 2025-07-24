@@ -35,12 +35,12 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(rpico2_race_sim rpico2_race_sim.c usb_descriptors.c)
+add_executable(rpico2_race_sim 
+    rpico2_race_sim.c
+    usb_descriptors.c
+    task_functions.c
+)
 
-# target_sources(rpico2_race_sim PUBLIC
-#         ${CMAKE_CURRENT_LIST_DIR}/rpico2_race_sim
-#         ${CMAKE_CURRENT_LIST_DIR}/usb_descriptor
-#         )
 
 pico_set_program_name(rpico2_race_sim "rpico2_race_sim")
 pico_set_program_version(rpico2_race_sim "0.1")
