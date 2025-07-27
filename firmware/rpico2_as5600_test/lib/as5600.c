@@ -28,13 +28,25 @@ uint16_t get_as5600_angle(i2c_inst_t *i2c) {
     uint8_t buffer[2];
     i2c_write_blocking(i2c, AS5600_ADDRESS, (uint8_t[]){AS5600_ANGLE_REG_HIGH}, 1, true);
     i2c_read_blocking(i2c, AS5600_ADDRESS, buffer, 2, false);
-    uint16_t angle = ((buffer[0] & 0x0F) << 8 | buffer[1]) * 360 / 4095;
+    uint16_t angle = ((buffer[0] & 0x0F) << 8 | buffer[1]);
     return angle;
 }
-
+    
 uint8_t get_as5600_agc(i2c_inst_t *i2c) {
     uint8_t agc;
     i2c_write_blocking(i2c, AS5600_ADDRESS, (uint8_t[]){AS5600_AGC_REG}, 1, true);
     i2c_read_blocking(i2c, AS5600_ADDRESS, &agc, 1, false);
     return agc;
+}
+
+int8_t process_as5600_angle(uint16_t angle, uint16_t ref_angle) {
+    int16_t diff = (int16_t)angle - (int16_t)ref_angle;
+    // Handle wrap-around (0-4095)
+    if (diff > 2048) diff -= 4096;
+    if (diff < -2048) diff += 4096;
+    // Scale to -127 to 127
+    int16_t out_angle = (diff * 127) / 2048;
+    if (out_angle > 127) out_angle = 127;
+    if (out_angle < -127) out_angle = -127;
+    return (int8_t) out_angle;
 }

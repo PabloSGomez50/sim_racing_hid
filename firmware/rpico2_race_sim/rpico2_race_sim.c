@@ -70,7 +70,7 @@ int main(void)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
-
+    check_debounced_buttons(buttons, NUM_BUTTONS);
     hid_task();
   }
 }
@@ -90,13 +90,8 @@ void hid_task(void)
     return; // not enough time
   start_ms += interval_ms;
 
-  int8_t steer_value = sense_adc_value(ADC_BRAKE_CH); // Read throttle value from ADC
-  uint8_t throttle_state = gpio_get(BTN_THROTTLE_PIN);
-  uint8_t brake_state = gpio_get(BTN_BRAKE_PIN);
-
-  // Combine throttle and brake states into a single button mask
-  uint32_t btn = throttle_state | (brake_state << 1); 
-  send_hid_gamepad_report(btn, steer_value);
+  uint32_t btn = buttons[0].pressed | (buttons[1].pressed << 1);
+  send_hid_gamepad_report(btn, 0);
 
   // Wake up host if we are in suspend mode
   // and REMOTE_WAKEUP feature is enabled by host
@@ -112,12 +107,12 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
   (void)instance;
   (void)len;
 
-  uint8_t next_report_id = report[0] + 1u;
+  // uint8_t next_report_id = report[0] + 1u;
 
-  if (next_report_id < REPORT_ID_COUNT)
-  {
-    send_hid_report(next_report_id, board_button_read());
-  }
+  // if (next_report_id < REPORT_ID_COUNT)
+  // {
+  //   send_hid_report(next_report_id, board_button_read());
+  // }
 }
 
 // Invoked when received GET_REPORT control request

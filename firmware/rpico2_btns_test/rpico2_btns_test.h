@@ -9,8 +9,8 @@
 #define ADC_CH_PIN 26
 
 #define NUM_BUTTONS 3
-#define BTN_1_PIN 0
-#define BTN_2_PIN 1
+#define BTN_1_PIN 7
+#define BTN_2_PIN 8
 #define BTN_3_PIN 14
 #define DEBOUNCE_DELAY_US 50 * 1000
 

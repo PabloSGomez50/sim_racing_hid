@@ -28,4 +28,6 @@ as5600_status_t get_as5600_status(i2c_inst_t *i2c);
 uint16_t get_as5600_angle(i2c_inst_t *i2c);
 uint8_t get_as5600_agc(i2c_inst_t *i2c);
 
+int8_t process_as5600_angle(uint16_t angle, uint16_t ref_angle);
+
 #endif

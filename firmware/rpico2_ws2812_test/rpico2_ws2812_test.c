@@ -18,12 +18,14 @@ will not work properly, so pay attention.
 Remember to use the strip_update() function every time you need or you will not see changes on the strip
 
 */
+#define NUMLEDS 32
+#define STRIP_PIN 22
 
 int main(){
 
     /*This is just a demo*/
 
-    strip_init();
+    strip_init(STRIP_PIN, NUMLEDS);
     while(1) {
 
         for(uint8_t i = 0; i < NUMLEDS; i++){

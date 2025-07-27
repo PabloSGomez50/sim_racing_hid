@@ -10,12 +10,52 @@ void hardware_init(void)
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  gpio_init(BTN_BRAKE_PIN);
-  gpio_set_dir(BTN_BRAKE_PIN, GPIO_IN);
+  gpio_init(BTN_1_PIN);
+  gpio_set_dir(BTN_1_PIN, GPIO_IN);
+  gpio_pull_up(BTN_1_PIN);
+  gpio_set_irq_enabled_with_callback(BTN_1_PIN, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false, &gpio_callback);
+  gpio_set_irq_enabled(BTN_1_PIN, GPIO_IRQ_EDGE_FALL, true);
 
-  gpio_init(BTN_THROTTLE_PIN);
-  gpio_set_dir(BTN_THROTTLE_PIN, GPIO_IN);
+  gpio_init(BTN_2_PIN);
+  gpio_set_dir(BTN_2_PIN, GPIO_IN);
+  gpio_pull_up(BTN_2_PIN);
+  gpio_set_irq_enabled_with_callback(BTN_2_PIN, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false, &gpio_callback);
+  gpio_set_irq_enabled(BTN_2_PIN, GPIO_IRQ_EDGE_FALL, true);
 }
+
+void gpio_callback(uint gpio, uint32_t events) {
+    for (int i = 0; i < NUM_BUTTONS; i++) {
+        if (buttons[i].gpio == gpio && buttons[i].debounced) {
+            buttons[i].last_time_us = time_us_32();
+            buttons[i].debounced = false;
+            gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false); // Bloquear hasta confirmar
+            break;
+        }
+    }
+}
+
+
+void check_debounced_buttons(button_state_t *buttons, uint8_t num_buttons) {
+    uint32_t now = time_us_32();
+
+    for (int i = 0; i < num_buttons; i++) {
+        if (!buttons[i].debounced && (now - buttons[i].last_time_us > DEBOUNCE_DELAY_US)) {
+          if (buttons[i].pressed) {
+              printf("Button %d PRESSED\n", buttons[i].gpio);
+          } else {
+              printf("Button %d RELEASED\n", buttons[i].gpio);
+          }
+
+          if (gpio_get(buttons[i].gpio)) {
+            gpio_set_irq_enabled(buttons[i].gpio, GPIO_IRQ_EDGE_FALL, true);
+          } else {
+            gpio_set_irq_enabled(buttons[i].gpio, GPIO_IRQ_EDGE_RISE, true);
+          }
+          buttons[i].debounced = true;
+        }
+    }
+}
+
 
 int8_t sense_adc_value(uint8_t channel) {
     adc_select_input(channel);
