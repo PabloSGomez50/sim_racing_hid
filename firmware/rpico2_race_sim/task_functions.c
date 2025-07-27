@@ -1,5 +1,26 @@
 #include "task_functions.h"
 
+volatile button_state_t btns_hid_states[NUM_BUTTONS] = {
+    {
+        .gpio = BTN_1_PIN,
+        .pressed = false,
+        .debounced = true,
+        .last_time_us = 0
+    },
+    {
+        .gpio = BTN_2_PIN,
+        .pressed = false,
+        .debounced = true,
+        .last_time_us = 0
+    },
+    {
+        .gpio = BTN_3_PIN,
+        .pressed = false,
+        .debounced = true,
+        .last_time_us = 0
+    }
+};
+
 void hardware_init(void)
 {
   adc_init();
@@ -10,62 +31,67 @@ void hardware_init(void)
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  gpio_init(BTN_1_PIN);
-  gpio_set_dir(BTN_1_PIN, GPIO_IN);
-  gpio_pull_up(BTN_1_PIN);
-  gpio_set_irq_enabled_with_callback(BTN_1_PIN, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false, &gpio_callback);
-  gpio_set_irq_enabled(BTN_1_PIN, GPIO_IRQ_EDGE_FALL, true);
+  gpio_init(PICO_DEFAULT_LED_PIN);
+  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  gpio_init(BTN_2_PIN);
-  gpio_set_dir(BTN_2_PIN, GPIO_IN);
-  gpio_pull_up(BTN_2_PIN);
-  gpio_set_irq_enabled_with_callback(BTN_2_PIN, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false, &gpio_callback);
-  gpio_set_irq_enabled(BTN_2_PIN, GPIO_IRQ_EDGE_FALL, true);
+  gpio_set_irq_enabled_with_callback(btns_hid_states[0].gpio, GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+  for (int i = 0; i < NUM_BUTTONS; i++)
+  {
+    gpio_init(btns_hid_states[i].gpio);
+    gpio_set_dir(btns_hid_states[i].gpio, GPIO_IN);
+    gpio_pull_up(btns_hid_states[i].gpio);
+    gpio_set_irq_enabled(btns_hid_states[i].gpio, GPIO_IRQ_EDGE_FALL, true);
+  }
 }
 
-void gpio_callback(uint gpio, uint32_t events) {
-    for (int i = 0; i < NUM_BUTTONS; i++) {
-        if (buttons[i].gpio == gpio && buttons[i].debounced) {
-            buttons[i].last_time_us = time_us_32();
-            buttons[i].debounced = false;
-            gpio_set_irq_enabled(gpio, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false); // Bloquear hasta confirmar
-            break;
-        }
+void gpio_callback(uint gpio, uint32_t events)
+{
+  for (int i = 0; i < NUM_BUTTONS; i++)
+  {
+    if (btns_hid_states[i].gpio == gpio && btns_hid_states[i].debounced)
+    {
+      bool state = (events & GPIO_IRQ_EDGE_FALL) != 0;
+      btns_hid_states[i].pressed = state;
+      btns_hid_states[i].last_time_us = time_us_32();
+      btns_hid_states[i].debounced = false;
+      gpio_set_irq_enabled(gpio, events, false); // Bloquear hasta confirmar
+      break;
     }
+  }
 }
 
+void check_debounced_buttons(void)
+{
+  uint32_t now = time_us_32();
 
-void check_debounced_buttons(button_state_t *buttons, uint8_t num_buttons) {
-    uint32_t now = time_us_32();
-
-    for (int i = 0; i < num_buttons; i++) {
-        if (!buttons[i].debounced && (now - buttons[i].last_time_us > DEBOUNCE_DELAY_US)) {
-          if (buttons[i].pressed) {
-              printf("Button %d PRESSED\n", buttons[i].gpio);
-          } else {
-              printf("Button %d RELEASED\n", buttons[i].gpio);
-          }
-
-          if (gpio_get(buttons[i].gpio)) {
-            gpio_set_irq_enabled(buttons[i].gpio, GPIO_IRQ_EDGE_FALL, true);
-          } else {
-            gpio_set_irq_enabled(buttons[i].gpio, GPIO_IRQ_EDGE_RISE, true);
-          }
-          buttons[i].debounced = true;
-        }
+  for (int i = 0; i < NUM_BUTTONS; i++)
+  {
+    if (!btns_hid_states[i].debounced && (now - btns_hid_states[i].last_time_us > DEBOUNCE_DELAY_US))
+    {
+      if (gpio_get(btns_hid_states[i].gpio))
+      {
+        gpio_set_irq_enabled(btns_hid_states[i].gpio, GPIO_IRQ_EDGE_FALL, true);
+        btns_hid_states[i].pressed = false;
+      }
+      else
+      {
+        gpio_set_irq_enabled(btns_hid_states[i].gpio, GPIO_IRQ_EDGE_RISE, true);
+      }
+      btns_hid_states[i].debounced = true;
     }
+  }
 }
 
+int8_t sense_adc_value(uint8_t channel)
+{
+  adc_select_input(channel);
+  int8_t steer_value = (int8_t)((int16_t)(adc_read() >> 4)) - 128; // 12-bit ADC value
+  if (steer_value < -127)
+    return -127;
+  if (steer_value > 127)
+    return 127;
 
-int8_t sense_adc_value(uint8_t channel) {
-    adc_select_input(channel);
-    int8_t steer_value = (int8_t)((int16_t)(adc_read() >> 4)) - 128; // 12-bit ADC value
-    if (steer_value < -127)
-      return -127;
-    if (steer_value > 127)
-      return 127;
-
-    return steer_value;
+  return steer_value;
 }
 
 void send_hid_gamepad_report(uint32_t btn, int8_t x_axis)
@@ -74,21 +100,18 @@ void send_hid_gamepad_report(uint32_t btn, int8_t x_axis)
     return;
 
   hid_gamepad_report_t report = {
-    .x = x_axis,
-    .y = 0,
-    .z = 0,
-    .rz = 0,
-    .rx = 0,
-    .ry = 0,
-    .hat = 0,
-    .buttons = btn
-  };
+      .x = x_axis,
+      .y = 0,
+      .z = 0,
+      .rz = 0,
+      .rx = 0,
+      .ry = 0,
+      .hat = 0,
+      .buttons = btn
+    };
 
   tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
 }
-
-
-
 
 void send_hid_report(uint8_t report_id, uint32_t btn)
 {
