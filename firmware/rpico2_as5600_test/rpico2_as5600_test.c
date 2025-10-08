@@ -9,6 +9,7 @@
 #define I2C_SCL 21
 #define I2C_SDA 20
 
+#define FULL_SCALE 180
 
 int main()
 {
@@ -32,9 +33,9 @@ int main()
         if (diff > 2048) diff -= 4096;
         if (diff < -2048) diff += 4096;
         // Scale to -127 to 127
-        int16_t angle = (diff * 127) / 2048;
-        if (angle > 127) angle = 127;
-        if (angle < -127) angle = -127;
+        int16_t angle = (diff * FULL_SCALE) / 2048;
+        if (angle > FULL_SCALE) angle = FULL_SCALE;
+        if (angle < -FULL_SCALE) angle = -FULL_SCALE;
         uint8_t agc = get_as5600_agc(I2C_PORT);
         printf("Magnet Status: %d %d %d, Angle: %d, AGC: %d\n", status.mh, status.ml, status.md, angle, agc);
 
