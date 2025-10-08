@@ -1,17 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
-#include "ili9341.h"
-#include "gfx.h"
-#include "rpico2_tft_test.h"
-
-// Display the Commodore 64 screen or the Terminal
-#define COMMODORE64 1
-
-void printLine(uint16_t line, const char *str);
-void InitializeDisplay(uint16_t color);
-void Commodore64();
-void Terminal();
+#include "config.h"
+#include "display/display.h"
 
 int main()
 {
@@ -19,8 +10,8 @@ int main()
 
     InitializeDisplay(FOREGROUND); // opt: FOREGROUND | BACKGROUND
     gpio_init(TFT_LED);
-	gpio_set_dir(TFT_LED, GPIO_OUT);
-    gpio_put(TFT_LED, 1);
+    gpio_set_dir(TFT_LED, GPIO_OUT);
+    gpio_put(TFT_LED, 0);
     
     Commodore64();
     // Terminal();
@@ -111,4 +102,5 @@ void Terminal()
         GFX_flush();
         sleep_ms(DELAY);
     }
+    return 0;
 }

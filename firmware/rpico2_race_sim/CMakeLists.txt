@@ -33,6 +33,12 @@ project(rpico2_race_sim C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+add_subdirectory(libs/as5600)
+add_subdirectory(libs/picoRGB)
+add_subdirectory(libs/ili9341)
+add_subdirectory(libs/lvgl libs/lvgl_build)
+add_subdirectory(libs/display)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(rpico2_race_sim 
@@ -58,6 +64,11 @@ target_link_libraries(rpico2_race_sim
         pico_stdlib
         tinyusb_device
         tinyusb_board
+        as5600
+        picoRGB
+        ili9341
+        lvgl
+        display
         )
 
 # Add the standard include files to the build

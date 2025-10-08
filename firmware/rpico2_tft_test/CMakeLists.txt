@@ -46,8 +46,8 @@ pico_enable_stdio_usb(rpico2_tft_test 1)
 
 
 add_subdirectory(lib/ili9341)
-add_subdirectory(lib/gfx)
-# add_subdirectory(pico-extras)
+add_subdirectory(lvgl lvgl_build)
+add_subdirectory(display)
 
 # Add the standard library to the build
 target_link_libraries(rpico2_tft_test
@@ -56,13 +56,16 @@ target_link_libraries(rpico2_tft_test
 # Add the standard include files to the build
 target_include_directories(rpico2_tft_test PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/lvgl
+        ${CMAKE_CURRENT_LIST_DIR}/lvgl/src
 )
 
 # Add any user requested libraries
 target_link_libraries(rpico2_tft_test 
         hardware_spi
         ili9341
-        gfx
+        lvgl
+        display
         )
 
 pico_add_extra_outputs(rpico2_tft_test)

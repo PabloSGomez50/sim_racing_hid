@@ -29,7 +29,10 @@
 #include "pico/stdlib.h"
 
 #include "task_functions.h"
-
+#include "config.h"
+#include "as5600.h"
+#include "picoRGB.h"
+#include "lvgl.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -51,6 +54,25 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 void hid_task(void);
+void config_reference(void);
+void wait_btn(bool btn, uint8_t btn_num);
+
+typedef struct {
+  uint16_t ref_angle;
+  uint16_t min_brk_adc;
+  uint16_t max_brk_adc;
+  uint16_t min_throttle_adc;
+  uint16_t max_throttle_adc;
+
+} gamepad_vars_t;
+
+gamepad_vars_t gamepad_vars = {
+  .ref_angle = 0,
+  .min_brk_adc = 0,
+  .max_brk_adc = 0,
+  .min_throttle_adc = 0,
+  .max_throttle_adc = 0
+};
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -59,6 +81,19 @@ int main(void)
   hardware_init();
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
+  
+  // I2C Initialisation. Using it at 400Khz.
+  i2c_init(I2C_PORT, 400*1000);
+
+  gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+  gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+  gpio_pull_up(I2C_SDA);
+  gpio_pull_up(I2C_SCL);
+
+  init_as5600_dir(AS5600_DIR_PIN);
+
+  strip_init(16, 32);
+  strip_set_brightness(10);
 
 
   if (board_init_after_tusb)
@@ -70,9 +105,29 @@ int main(void)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
-
+    check_debounced_buttons();
+    if (btns_hid_states[0].pressed && btns_hid_states[1].pressed)
+      config_reference();
     hid_task();
+    sleep_ms(5);
   }
+}
+
+void wait_btn(bool btn, uint8_t btn_num) {
+  while(btns_hid_states[btn_num].pressed != btn) {
+    check_debounced_buttons();
+    sleep_ms(2);
+  }
+}
+
+void config_reference(void) {
+  wait_btn(false, 0);
+  strip_fill_solid(0, 0, 255);
+  wait_btn(true, 0);
+  strip_fill_solid(0, 255, 0);
+  gamepad_vars.ref_angle = get_as5600_angle(I2C_PORT);
+  wait_btn(false, 0);
+  strip_fill_solid(255, 0, 0);
 }
 
 //--------------------------------------------------------------------+
@@ -82,21 +137,17 @@ int main(void)
 // tud_hid_report_complete_cb() is used to send the next report after previous one is complete
 void hid_task(void)
 {
-  // Poll every 10ms
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
-
-  if (board_millis() - start_ms < interval_ms)
-    return; // not enough time
-  start_ms += interval_ms;
-
-  int8_t steer_value = sense_adc_value(ADC_BRAKE_CH); // Read throttle value from ADC
-  uint8_t throttle_state = gpio_get(BTN_THROTTLE_PIN);
-  uint8_t brake_state = gpio_get(BTN_BRAKE_PIN);
-
-  // Combine throttle and brake states into a single button mask
-  uint32_t btn = throttle_state | (brake_state << 1); 
-  send_hid_gamepad_report(btn, steer_value);
+  strip_fill_solid(255, 255, 255);
+  uint32_t btn = 0;
+  for (int i = 0; i < NUM_BUTTONS; i++)
+  {
+    if (btns_hid_states[i].pressed)
+      btn |= (1 << i);
+  }
+  
+  as5600_status_t status = get_as5600_status(I2C_PORT);
+  int8_t angle = process_as5600_angle(get_as5600_angle(I2C_PORT), gamepad_vars.ref_angle);
+  send_hid_gamepad_report(btn, angle);
 
   // Wake up host if we are in suspend mode
   // and REMOTE_WAKEUP feature is enabled by host
