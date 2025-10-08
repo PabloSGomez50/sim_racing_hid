@@ -17,17 +17,13 @@ int main()
 {
     stdio_init_all();
 
-#if COMMODORE64
-    InitializeDisplay(FOREGROUND);
+    InitializeDisplay(FOREGROUND); // opt: FOREGROUND | BACKGROUND
     gpio_init(TFT_LED);
 	gpio_set_dir(TFT_LED, GPIO_OUT);
     gpio_put(TFT_LED, 1);
     
     Commodore64();
-#else
-    InitializeDisplay(BACKGROUND);
-    Terminal();
-#endif
+    // Terminal();
 
     return 0;
 }
@@ -42,13 +38,13 @@ void printLine(uint16_t line, const char *str)
 
 void InitializeDisplay(uint16_t color)
 {
-
     // Initialize display
     printf("Initializing display...");
     LCD_setSPIperiph(spi0);
     LCD_setPins(TFT_DC, TFT_CS, TFT_RST, TFT_SCLK, TFT_MOSI);
     LCD_initDisplay();
     LCD_setRotation(TFT_ROTATION);
+    
     GFX_createFramebuf();
     GFX_setClearColor(color);
     GFX_setTextBack(BACKGROUND);
@@ -68,7 +64,7 @@ void Commodore64()
     printf("Writing...");
     uint16_t line = 0;
     printLine(line++, "    **** COMMODORE 64 BASIC V3 ****");
-    printLine(line++, "x TEST BASIC PROGRAM");
+    printLine(line++, "xTEST BASIC PROGRAM");
     printLine(line++, " READY.");
     printLine(line++, " LOAD\"*\",8,1");
     printLine(line++, " SEARCHING FOR *");
