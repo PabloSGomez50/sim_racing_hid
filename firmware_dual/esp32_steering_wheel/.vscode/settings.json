@@ -1,0 +1,12 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "clangd.path": "C:\\Users\\PabloPC\\.espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=c:\\Users\\PabloPC\\Documents\\Github\\sim_racing_hid\\firmware_dual\\esp32_steering_wheel\\build"
+  ],
+  "idf.currentSetup": "C:\\Users\\PabloPC\\esp\\v5.5\\esp-idf",
+  "idf.flashType": "UART",
+  "idf.portWin": "COM15"
+}
