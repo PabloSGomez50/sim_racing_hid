@@ -7,6 +7,7 @@
 #include "usb_descriptors.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "config.h"
 
 #define ADC_BRAKE_CH 0
 #define ADC_THROTTLE_CH 1

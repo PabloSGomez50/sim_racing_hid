@@ -116,7 +116,7 @@ int main(void)
 void wait_btn(bool btn, uint8_t btn_num) {
   while(btns_hid_states[btn_num].pressed != btn) {
     check_debounced_buttons();
-    sleep_ms(2);
+    sleep_ms(5);
   }
 }
 
