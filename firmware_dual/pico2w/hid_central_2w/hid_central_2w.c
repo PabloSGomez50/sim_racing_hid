@@ -16,7 +16,6 @@
 #include "udp_tlv_protocol.h"
 
 #define UDP_LISTEN_PORT 7777
-#define BEACON_TARGET "255.255.255.255"
 
 static volatile uint32_t g_frames_ok = 0;
 static volatile uint32_t g_frames_bad = 0;

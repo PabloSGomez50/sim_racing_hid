@@ -1,6 +1,8 @@
 idf_component_register(
     SRCS 
         "main.c"
+        "input_buttons.c"
+        "input_encoders.c"
         "LVGL_Driver/LVGL_Driver.c"
         "LVGL_UI/ui.c"
         "LVGL_UI/ui_racingScreen.c"
