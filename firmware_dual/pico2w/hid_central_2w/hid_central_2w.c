@@ -100,11 +100,7 @@ static bool parse_frame(const uint8_t *data, uint16_t len) {
 
     memcpy(&header, data, UDP_TLV_HEADER_SIZE);
 
-    if (header.magic != UDP_TLV_PROTO_MAGIC) {
-        return false;
-    }
-
-    if (header.version_major != UDP_TLV_PROTO_MAJOR) {
+    if (header.magic != UDP_TLV_PROTO_MAGIC || header.version_minor != UDP_TLV_PROTO_MAJOR) {
         return false;
     }
 
@@ -164,8 +160,6 @@ int main(void) {
         printf("wifi init failed\n");
         return -1;
     }
-    sleep_ms(5000);
-
 
     cyw43_arch_enable_ap_mode(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK);
     ip4_addr_t ap_ip;

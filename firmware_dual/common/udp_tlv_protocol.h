@@ -33,6 +33,8 @@ typedef enum {
     EVENT_ID_BTN_2 = 2,
     EVENT_ID_BTN_3 = 3,
     EVENT_ID_BTN_4 = 4,
+    EVENT_ID_BTN_5 = 5,
+    EVENT_ID_MAIN_BTNS = 50,
     EVENT_ID_ENC_1_DELTA = 100,
     EVENT_ID_ENC_2_DELTA = 101,
     EVENT_ID_LINK_UPTIME_MS = 200

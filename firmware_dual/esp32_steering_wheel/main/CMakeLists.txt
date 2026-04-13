@@ -1,2 +1,16 @@
-idf_component_register(SRCS "main.c"
-                    INCLUDE_DIRS "." "../../common")
+idf_component_register(
+    SRCS 
+        "main.c"
+        "LVGL_Driver/LVGL_Driver.c"
+        "LVGL_UI/ui.c"
+        "LVGL_UI/ui_racingScreen.c"
+        "LVGL_UI/ui_img_557436209.c"
+        "LVGL_UI/ui_helpers.c"
+        "LVGL_UI/ui_comp_hook.c"
+    
+    INCLUDE_DIRS
+        "."
+        "../../common"
+        "./LVGL_Driver"
+        "./LVGL_UI"
+)

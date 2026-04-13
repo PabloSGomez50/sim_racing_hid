@@ -10,23 +10,128 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "udp_tlv_protocol.h"
 #include "wifi_config.h"
+#include "LVGL_Driver.h"
+#include "ui.h"
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_MAX_RETRY 10
+#define BTN_DEBOUNCE_US 15000
+#define BTN_ISR_QUEUE_LEN 32
+#define UI_TASK_STACK_SIZE 6144
+
+/* Active-low buttons with pull-up enabled. */
+static const gpio_num_t s_button_pins[] = {
+    GPIO_NUM_4,
+    GPIO_NUM_16,
+    GPIO_NUM_17,
+};
+
+/* Assumes button event IDs are contiguous in protocol starting at BTN_1. */
+static const uint16_t s_button_event_ids[] = {
+    EVENT_ID_BTN_1,
+    EVENT_ID_BTN_2,
+    EVENT_ID_BTN_3,
+};
+
+#define BUTTON_COUNT ((uint8_t)(sizeof(s_button_pins) / sizeof(s_button_pins[0])))
+
+typedef struct {
+    uint8_t button_idx;
+    int64_t isr_time_us;
+} button_isr_evt_t;
 
 static const char *TAG = "udp_sta";
 static EventGroupHandle_t wifi_event_group;
+static QueueHandle_t s_button_isr_queue = NULL;
 static uint8_t s_retry_num = 0;
 static uint16_t s_seq = 0;
 static esp_netif_t *s_sta_netif = NULL;
+static uint32_t s_button_state_mask = 0;
+static int64_t s_button_last_change_us[BUTTON_COUNT] = {0};
+
+static void IRAM_ATTR button_gpio_isr(void *arg) {
+    uint32_t idx = (uint32_t)arg;
+    button_isr_evt_t evt;
+    BaseType_t hp_task_woken = pdFALSE;
+
+    evt.button_idx = (uint8_t)idx;
+    evt.isr_time_us = esp_timer_get_time();
+
+    if (s_button_isr_queue != NULL) {
+        xQueueSendFromISR(s_button_isr_queue, &evt, &hp_task_woken);
+        if (hp_task_woken == pdTRUE) {
+            portYIELD_FROM_ISR();
+        }
+    }
+}
+
+static esp_err_t buttons_init(void) {
+    gpio_config_t io_cfg = {
+        .intr_type = GPIO_INTR_ANYEDGE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = 0,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+
+    for (uint8_t i = 0; i < BUTTON_COUNT; i++) {
+        io_cfg.pin_bit_mask |= (1ULL << s_button_pins[i]);
+    }
+    ESP_ERROR_CHECK(gpio_config(&io_cfg));
+
+    s_button_isr_queue = xQueueCreate(BTN_ISR_QUEUE_LEN, sizeof(button_isr_evt_t));
+    if (s_button_isr_queue == NULL) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    ESP_ERROR_CHECK(gpio_install_isr_service(0));
+
+    for (uint8_t i = 0; i < BUTTON_COUNT; i++) {
+        bool pressed = (gpio_get_level(s_button_pins[i]) == 0);
+        if (pressed) {
+            s_button_state_mask |= (1UL << i);
+        }
+        ESP_ERROR_CHECK(gpio_isr_handler_add(s_button_pins[i], button_gpio_isr, (void *)(uint32_t)i));
+    }
+
+    ESP_LOGI(TAG, "buttons initialized count=%u", BUTTON_COUNT);
+    return ESP_OK;
+}
+
+static void process_button_events(void) {
+    button_isr_evt_t evt;
+
+    if (s_button_isr_queue == NULL) {
+        return;
+    }
+
+    while (xQueueReceive(s_button_isr_queue, &evt, 0) == pdTRUE) {
+        if (evt.button_idx >= BUTTON_COUNT) {
+            continue;
+        }
+        if ((evt.isr_time_us - s_button_last_change_us[evt.button_idx]) < BTN_DEBOUNCE_US) {
+            continue;
+        }
+
+        if (gpio_get_level(s_button_pins[evt.button_idx]) == 0) {
+            s_button_state_mask |= (1UL << evt.button_idx);
+        } else {
+            s_button_state_mask &= ~(1UL << evt.button_idx);
+        }
+
+        s_button_last_change_us[evt.button_idx] = evt.isr_time_us;
+    }
+}
 
 static uint16_t write_event_tlv(uint8_t *dst,
                                 uint16_t max_len,
@@ -51,12 +156,33 @@ static uint16_t write_event_tlv(uint8_t *dst,
     return (uint16_t)(UDP_TLV_EVENT_PREFIX_SIZE + value_len);
 }
 
+static uint16_t build_buttons_frame(uint8_t *buffer, uint16_t buffer_len, uint8_t *event_count) {
+    uint16_t offset = 0, written;
+    for (uint8_t i = 0; i < BUTTON_COUNT; i++) {
+        bool pressed = ((s_button_state_mask >> i) & 0x1U) != 0;
+        written = write_event_tlv(
+            buffer + offset,
+            (uint16_t)(buffer_len - offset),
+            s_button_event_ids[i],
+            EVENT_CLASS_BUTTON,
+            VALUE_TYPE_BOOL,
+            &pressed,
+            sizeof(pressed)
+        );
+        if (written > 0) {
+            offset += written;
+            (*event_count)++;
+        }
+    }
+
+    return offset;
+}
+
 static uint16_t build_input_frame(uint8_t *buffer, uint16_t buffer_len) {
     udp_tlv_header_t header;
     uint16_t offset = UDP_TLV_HEADER_SIZE;
     uint8_t *payload = buffer + UDP_TLV_HEADER_SIZE;
     uint8_t event_count = 0;
-    bool button = ((xTaskGetTickCount() / pdMS_TO_TICKS(500)) % 2) != 0;
     int16_t enc_delta = (int16_t)((esp_random() % 3) - 1);
     uint32_t uptime_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
     uint16_t written;
@@ -68,17 +194,7 @@ static uint16_t build_input_frame(uint8_t *buffer, uint16_t buffer_len) {
     payload[0] = 0;
     offset += 1;
 
-    written = write_event_tlv(buffer + offset,
-                              (uint16_t)(buffer_len - offset),
-                              EVENT_ID_BTN_1,
-                              EVENT_CLASS_BUTTON,
-                              VALUE_TYPE_BOOL,
-                              &button,
-                              sizeof(button));
-    if (written > 0) {
-        offset += written;
-        event_count++;
-    }
+    offset += build_buttons_frame(buffer + offset, buffer_len - offset, &event_count);
 
     written = write_event_tlv(buffer + offset,
                               (uint16_t)(buffer_len - offset),
@@ -168,9 +284,6 @@ static esp_err_t wifi_init_sta(void) {
         },
     };
 
-    // snprintf((char *)wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), "%s", UDP_WIFI_SSID);
-    // snprintf((char *)wifi_config.sta.password, sizeof(wifi_config.sta.password), "%s", UDP_WIFI_PASS);
-
     wifi_event_group = xEventGroupCreate();
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -226,6 +339,8 @@ static void udp_sender_task(void *arg) {
     dest_addr.sin_addr.s_addr = inet_addr(UDP_REMOTE_IP);
     
     while (true) {
+        process_button_events();
+
         EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
                                                WIFI_CONNECTED_BIT,
                                                pdFALSE,
@@ -269,6 +384,19 @@ static void udp_sender_task(void *arg) {
     }
 }
 
+void ui_task(void *arg) {
+    (void)arg;
+    LVGL_Init();
+    ui_init();
+    while (true) {
+        uint32_t wait_ms = lv_timer_handler();
+        if (wait_ms > 20) {
+            wait_ms = 20;
+        }
+        vTaskDelay(pdMS_TO_TICKS(wait_ms));
+    }
+}
+
 void app_main(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -277,7 +405,25 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
 
+    ESP_ERROR_CHECK(buttons_init());
     ESP_ERROR_CHECK(wifi_init_sta());
 
-    xTaskCreate(udp_sender_task, "udp_sender_task", 4096, NULL, 5, NULL);
+    xTaskCreatePinnedToCore(
+        udp_sender_task,
+        "udp_sender_task",
+        4096,
+        NULL,
+        2,
+        NULL,
+        0
+    );
+    xTaskCreatePinnedToCore(
+        ui_task,
+        "display_tick_task",
+        UI_TASK_STACK_SIZE,
+        NULL,
+        2,
+        NULL,
+        1
+    );
 }
