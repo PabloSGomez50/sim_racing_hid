@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 // --- MODIFICACIÓN 1: Consistencia de IDs ---
 // En tus descriptores anteriores, el Gamepad era el ID 4. 
@@ -49,15 +50,54 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                             hid_report_type_t report_type, 
                             uint8_t const* buffer, uint16_t bufsize) {
     (void) instance;
+    if (report_type == HID_REPORT_TYPE_FEATURE) {
+        if (report_id == REPORT_ID_POOL_REPORT) {
+            // El juego pregunta por la memoria disponible para efectos
+            uint8_t response[3] = {0}; // Aquí puedes definir tu memoria total y simultánea
+            response[0] = 0x00; // RAM Pool Size (ej: 4096 bytes -> 0x1000)
+            response[1] = 0x10;
+            response[2] = 0x00; // Max Simultaneous Effects (ej: 40 -> 0x28)
+            tud_hid_report(REPORT_ID_POOL_REPORT, response, sizeof(response));
+        }
+    }
     if (report_type == HID_REPORT_TYPE_OUTPUT) {
         print_ffb_raw(report_id, buffer, bufsize);
+        switch(report_id) {
+            case REPORT_ID_SET_EFFECT:
+                // El juego está definiendo un efecto (Constant, Spring, etc.)
+                printf("[HID RECEIVE] Set Effect Command Received\n");
+                if (bufsize < 8) {
+                    printf("Error: Set Effect report too short (%u bytes)\n", bufsize);
+                    return;
+                }
+                printf("Effect Block Index: %d\n", buffer[0]);
+                printf("Effect Type: %d\n", buffer[1]);
+                printf("Duration: %d\n", ((uint16_t)buffer[2] << 8) | buffer[3]);
+                break;
+            case REPORT_ID_DEV_CONTROL:
+                // El juego activó/desactivó el FFB
+                printf("[HID RECEIVE] Device Control Command Received\n");
+                break;
+        }
     }
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, 
                                 hid_report_type_t report_type, 
                                 uint8_t* buffer, uint16_t reqlen) {
-    (void) instance; (void) report_id; (void) report_type; (void) buffer; (void) reqlen;
+    (void) instance;
+    (void) buffer;
+    (void) reqlen;
+    if (report_type == HID_REPORT_TYPE_FEATURE && report_id == REPORT_ID_POOL_REPORT) {
+        printf("[HID GET_REPORT] Report ID: 0x%02X (PID Pool Report)\n", report_id);
+        pid_pool_report_t pool = {
+            .ram_pool_size = 0x0FFF, // 4KB de "memoria" simulada
+            .max_simultaneous_effects = 40,
+            .memory_management = 3 // Device Managed + Shared Parameter Blocks
+        };
+        memcpy(buffer, &pool, sizeof(pool));
+        return sizeof(pool);
+    }
     return 0;
 }
 
