@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "hardware/adc.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -9,6 +10,11 @@
 #define REPORT_ID_GAMEPAD 1
 #define REPORT_ID_PID 2
 #define LED_PIN PICO_DEFAULT_LED_PIN
+
+#define ADC_CH_PIN 26
+#define ADC_BRAKE_CH 0
+#define ADC_THROTTLE_CH 1
+#define ADC_STEERING_CH 2
 
 typedef struct {
     int8_t x;       
@@ -101,6 +107,12 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
     return 0;
 }
 
+int16_t read_adc_ch(uint8_t ch) {
+    adc_select_input(ch);
+    // return adc_read();
+    return ((int16_t)adc_read() - 2048) << 4; // Centrar en 0 para facilitar el manejo de ejes (rango -2048 a +2047)
+}
+
 void send_hid_report() {
     if (!tud_hid_ready()) return;
 
@@ -110,14 +122,17 @@ void send_hid_report() {
     if (current_time_ms - start_ms < 10) return; 
     start_ms = current_time_ms;
 
-    static int8_t pos = 0;
-    static int8_t direction = 1;
-    pos += direction;
-    if (pos >= 100 || pos <= -100) direction *= -1;
+    // static int8_t pos = 0;
+    // static int8_t direction = 1;
+    // pos += direction;
+    // if (pos >= 100 || pos <= -100) direction *= -1;
 
-    simple_report_t report = {
-        .x = pos,
-        .y = 0,
+
+    joystick_report_t report = {
+        .steering = read_adc_ch(ADC_STEERING_CH), // Escalamos a rango completo
+        .accelerator = read_adc_ch(ADC_THROTTLE_CH),
+        .brake = read_adc_ch(ADC_BRAKE_CH),
+        .clutch = 0,
         .buttons = 0x00
     };
 
@@ -127,6 +142,12 @@ void send_hid_report() {
 
 int main() {
     stdio_init_all();
+    adc_init();
+    adc_gpio_init(ADC_CH_PIN + ADC_BRAKE_CH);
+    adc_gpio_init(ADC_CH_PIN + ADC_THROTTLE_CH);
+    adc_gpio_init(ADC_CH_PIN + ADC_STEERING_CH);
+    adc_select_input(ADC_BRAKE_CH);
+
     
     // Inicializar LED para debug físico
     gpio_init(LED_PIN);

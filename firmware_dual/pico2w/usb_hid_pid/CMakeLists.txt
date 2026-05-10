@@ -61,7 +61,7 @@ target_include_directories(usb_hid_pid PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(usb_hid_pid 
-        
+        hardware_adc
         )
 
 pico_add_extra_outputs(usb_hid_pid)
