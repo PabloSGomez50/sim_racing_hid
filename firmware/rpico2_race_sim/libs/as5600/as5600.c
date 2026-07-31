@@ -35,14 +35,3 @@ uint8_t get_as5600_agc(i2c_inst_t *i2c) {
     return agc;
 }
 
-int8_t process_as5600_angle(uint16_t angle, uint16_t ref_angle) {
-    int16_t diff = (int16_t)angle - (int16_t)ref_angle;
-    // Handle wrap-around (0-4095)
-    if (diff > 2048) diff -= 4096;
-    if (diff < -2048) diff += 4096;
-    // Scale to -127 to 127
-    int16_t out_angle = (diff * 127) / 2048;
-    if (out_angle > 127) out_angle = 127;
-    if (out_angle < -127) out_angle = -127;
-    return (int8_t) out_angle;
-}

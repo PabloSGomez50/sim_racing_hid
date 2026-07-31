@@ -37,9 +37,13 @@
     "raspberry-pi-pico.cmakePath": "${HOME}/.pico-sdk/cmake/v3.31.5/bin/cmake",
     "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
     "files.associations": {
+        "*.mpy": "python",
         "board.h": "c",
         "adc.h": "c",
         "cstdint": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "as5600.h": "c",
+        "config.h": "c",
+        "tusb.h": "c"
     }
 }

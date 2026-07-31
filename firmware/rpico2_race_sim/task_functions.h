@@ -30,11 +30,14 @@ extern volatile button_state_t btns_hid_states[NUM_BUTTONS];
 void gpio_callback(uint gpio, uint32_t events);
 void check_debounced_buttons(void);
 
-int8_t sense_adc_value(uint8_t channel);
+uint16_t read_adc_raw(uint8_t channel);
+int8_t read_adc_value(uint8_t channel);
+int8_t range_8bit_signed(uint16_t value, uint16_t ref_value);
 
 void hardware_init(void);
-void send_hid_gamepad_report(uint32_t btn, int8_t x_axis);
+void send_hid_gamepad_report(hid_gamepad_report_t report);
 
 void send_hid_report(uint8_t report_id, uint32_t btn);
+
 
 #endif

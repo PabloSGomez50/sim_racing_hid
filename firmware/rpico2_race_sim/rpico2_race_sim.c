@@ -38,18 +38,6 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
-/* Blink pattern
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
- */
-enum
-{
-  BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
-};
-
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
@@ -57,21 +45,13 @@ void hid_task(void);
 void config_reference(void);
 void wait_btn(bool btn, uint8_t btn_num);
 
-typedef struct {
-  uint16_t ref_angle;
-  uint16_t min_brk_adc;
-  uint16_t max_brk_adc;
-  uint16_t min_throttle_adc;
-  uint16_t max_throttle_adc;
-
-} gamepad_vars_t;
 
 gamepad_vars_t gamepad_vars = {
   .ref_angle = 0,
   .min_brk_adc = 0,
-  .max_brk_adc = 0,
+  .max_brk_adc = 4096,
   .min_throttle_adc = 0,
-  .max_throttle_adc = 0
+  .max_throttle_adc = 4096
 };
 
 /*------------- MAIN -------------*/
@@ -95,7 +75,6 @@ int main(void)
   strip_init(16, 32);
   strip_set_brightness(10);
 
-
   if (board_init_after_tusb)
   {
     board_init_after_tusb();
@@ -113,12 +92,14 @@ int main(void)
   }
 }
 
-void wait_btn(bool btn, uint8_t btn_num) {
-  while(btns_hid_states[btn_num].pressed != btn) {
+void wait_btn(bool btn_state, uint8_t btn_num) {
+  while(btns_hid_states[btn_num].pressed != btn_state) {
     check_debounced_buttons();
-    sleep_ms(2);
+    sleep_ms(10);
   }
 }
+
+// void wait_for_config()
 
 void config_reference(void) {
   wait_btn(false, 0);
@@ -126,8 +107,30 @@ void config_reference(void) {
   wait_btn(true, 0);
   strip_fill_solid(0, 255, 0);
   gamepad_vars.ref_angle = get_as5600_angle(I2C_PORT);
+  
   wait_btn(false, 0);
-  strip_fill_solid(255, 0, 0);
+  strip_fill_solid(0, 0, 255);
+  wait_btn(true, 0);
+  strip_fill_solid(0, 255, 0);
+  gamepad_vars.min_brk_adc = read_adc_raw(ADC_BRAKE_CH);
+  
+  wait_btn(false, 0);
+  strip_fill_solid(0, 0, 255);
+  wait_btn(true, 0);
+  strip_fill_solid(0, 255, 0);
+  gamepad_vars.max_brk_adc = read_adc_raw(ADC_BRAKE_CH);
+
+  wait_btn(false, 0);
+  strip_fill_solid(0, 0, 255);
+  wait_btn(true, 0);
+  strip_fill_solid(0, 255, 0);
+  gamepad_vars.min_throttle_adc = read_adc_raw(ADC_THROTTLE_CH);
+  
+  wait_btn(false, 0);
+  strip_fill_solid(0, 0, 255);
+  wait_btn(true, 0);
+  strip_fill_solid(0, 255, 0);
+  gamepad_vars.max_throttle_adc = read_adc_raw(ADC_THROTTLE_CH);
 }
 
 //--------------------------------------------------------------------+
@@ -147,7 +150,17 @@ void hid_task(void)
   
   as5600_status_t status = get_as5600_status(I2C_PORT);
   int8_t angle = process_as5600_angle(get_as5600_angle(I2C_PORT), gamepad_vars.ref_angle);
-  send_hid_gamepad_report(btn, angle);
+  hid_gamepad_report_t r = {
+      .buttons = btn,
+      .x = angle,
+      .y = read_adc_raw(ADC_THROTTLE_CH),
+      .z = read_adc_raw(ADC_BRAKE_CH),
+      .rx = 0,
+      .ry = 0,
+      .rz = 0,
+      .hat = 0
+  };
+  send_hid_gamepad_report(r);
 
   // Wake up host if we are in suspend mode
   // and REMOTE_WAKEUP feature is enabled by host
@@ -223,7 +236,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  static uint32_t start_ms = 0;
+  uint32_t ticks_millis = board_millis();
   static bool led_state = false;
 
   // blink is disabled
@@ -231,12 +244,12 @@ void led_blinking_task(void)
     return;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms)
+  if (board_millis() - ticks_millis < blink_interval_ms)
     return; // not enough time
-  start_ms += blink_interval_ms;
+  ticks_millis = board_millis();
 
   gpio_put(PICO_DEFAULT_LED_PIN, led_state);
-  led_state = 1 - led_state; // toggle
+  led_state ^= 1; // toggle
 }
 
 

@@ -31,10 +31,7 @@ void hardware_init(void)
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  gpio_init(PICO_DEFAULT_LED_PIN);
-  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-
-  gpio_set_irq_enabled_with_callback(btns_hid_states[0].gpio, GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(btns_hid_states[0].gpio, GPIO_IRQ_EDGE_FALL, false, &gpio_callback);
   for (int i = 0; i < NUM_BUTTONS; i++)
   {
     gpio_init(btns_hid_states[i].gpio);
@@ -82,33 +79,40 @@ void check_debounced_buttons(void)
   }
 }
 
-int8_t sense_adc_value(uint8_t channel)
+int8_t read_adc_value(uint8_t channel)
 {
   adc_select_input(channel);
-  int8_t steer_value = (int8_t)((int16_t)(adc_read() >> 4)) - 128; // 12-bit ADC value
-  if (steer_value < -127)
+  int16_t axis_value = (int16_t)(adc_read() >> 4) - 128; // 12-bit ADC value
+  if (axis_value < -127)
     return -127;
-  if (steer_value > 127)
+  if (axis_value > 127)
     return 127;
 
-  return steer_value;
+  return (int8_t) axis_value;
 }
 
-void send_hid_gamepad_report(uint32_t btn, int8_t x_axis)
+uint16_t read_adc_raw(uint8_t channel) {
+    adc_select_input(channel);
+    return adc_read(); // 12-bit ADC value (0-4095)
+}
+
+
+int8_t range_8bit_signed(uint16_t value, uint16_t ref_value) {
+    int16_t diff = (int16_t)value - (int16_t)ref_value;
+    // Handle wrap-around (0-4095)
+    if (diff > 2048) diff -= 4096;
+    if (diff < -2048) diff += 4096;
+    // Scale to -127 to 127
+    int16_t out_value = diff / (1 << 5);
+    if (out_value > 127) out_value = 127;
+    if (out_value < -127) out_value = -127;
+    return (int8_t) out_value;
+}
+
+void send_hid_gamepad_report(hid_gamepad_report_t report)
 {
   if (!tud_hid_ready())
     return;
-
-  hid_gamepad_report_t report = {
-      .x = x_axis,
-      .y = 0,
-      .z = 0,
-      .rz = 0,
-      .rx = 0,
-      .ry = 0,
-      .hat = 0,
-      .buttons = btn
-    };
 
   tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
 }

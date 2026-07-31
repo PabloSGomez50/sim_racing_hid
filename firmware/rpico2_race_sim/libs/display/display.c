@@ -4,6 +4,20 @@ static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf1[TFT_HEIGHT * 10];
 static lv_color_t buf2[TFT_HEIGHT * 10];
 
+static lv_obj_t *lbl_pos;
+static lv_obj_t *lbl_lap;
+static lv_obj_t *lbl_lap_time;
+static lv_obj_t *lbl_gear;
+static lv_obj_t *lbl_speed_kph;
+static lv_obj_t *lbl_tyre_temp[4];
+
+static lv_obj_t *btn_overtake;
+static lv_obj_t *btn_drs;
+
+static lv_obj_t *bar_batt;
+static lv_obj_t *lbl_batt;
+
+
 // Flush de LVGL al display físico
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
     LCD_WriteBitmap(
@@ -56,17 +70,17 @@ void f1_dashboard_create(void) {
     lv_obj_set_style_border_width(box_left_inner, 0, 0);
     lv_obj_clear_flag(box_left_inner, LV_OBJ_FLAG_SCROLLABLE);
     
-    lv_obj_t *lbl_pos = lv_label_create(box_left_inner);
+    lbl_pos = lv_label_create(box_left_inner);
     lv_label_set_text(lbl_pos, "P1");
     lv_obj_align(lbl_pos, LV_ALIGN_TOP_LEFT, 2, -5);
     lv_obj_set_style_text_color(lbl_pos, lv_color_white(), 0);
     
-    lv_obj_t *lbl_lap = lv_label_create(box_left_inner);
+    lbl_lap = lv_label_create(box_left_inner);
     lv_label_set_text(lbl_lap, "L15/30");
     lv_obj_align(lbl_lap, LV_ALIGN_TOP_LEFT, 2, 10);
     lv_obj_set_style_text_color(lbl_lap, lv_color_white(), 0);
 
-    lv_obj_t *lbl_lap_time = lv_label_create(box_left_inner);
+    lbl_lap_time = lv_label_create(box_left_inner);
     lv_label_set_text(lbl_lap_time, "01:23.456");
     lv_obj_align(lbl_lap_time, LV_ALIGN_TOP_LEFT, 2, 25);
     lv_obj_set_style_text_color(lbl_lap_time, lv_color_white(), 0);
@@ -91,13 +105,13 @@ void f1_dashboard_create(void) {
     lv_obj_set_style_border_width(box_center_inner, 0, 0);
     lv_obj_clear_flag(box_center_inner, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *lbl_gear = lv_label_create(box_center_inner);
+    lbl_gear = lv_label_create(box_center_inner);
     lv_label_set_text(lbl_gear, "5");
     lv_obj_set_style_text_font(lbl_gear, &lv_font_montserrat_40, 0);
     lv_obj_set_style_text_color(lbl_gear, lv_color_white(), 0);
     lv_obj_align(lbl_gear, LV_ALIGN_BOTTOM_MID, 0, -10);
 
-    lv_obj_t *lbl_speed_kph = lv_label_create(box_center_inner);
+    lbl_speed_kph = lv_label_create(box_center_inner);
     lv_label_set_text(lbl_speed_kph, "325");
     lv_obj_set_style_text_font(lbl_speed_kph, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(lbl_speed_kph, lv_color_white(), 0);
@@ -127,6 +141,7 @@ void f1_dashboard_create(void) {
     for (int i = 0; i < 4; i++) {
         int row = i / 2;
         int col = i % 2;
+        
         lv_obj_t *temp_box = lv_obj_create(box_right_inner);
         lv_obj_set_size(temp_box, 40, 25);
         lv_obj_align(temp_box, LV_ALIGN_TOP_LEFT, col * 45 - 5, row * 30 - 7);
@@ -142,10 +157,10 @@ void f1_dashboard_create(void) {
 
         char txt[8];
         sprintf(txt, "%d°", temps[i]);
-        lv_obj_t *lbl = lv_label_create(temp_box);
-        lv_label_set_text(lbl, txt);
-        lv_obj_center(lbl);
-        lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+        lbl_tyre_temp[i] = lv_label_create(temp_box);
+        lv_label_set_text(lbl_tyre_temp[i], txt);
+        lv_obj_center(lbl_tyre_temp[i]);
+        lv_obj_set_style_text_color(lbl_tyre_temp[i], lv_color_white(), 0);
     }
 
     // === PANEL: Logo centrado ===
@@ -158,7 +173,7 @@ void f1_dashboard_create(void) {
     bool overtake_enabled = true;
     bool drs_enabled = false;
 
-    lv_obj_t *btn_overtake = lv_btn_create(scr);
+    btn_overtake = lv_btn_create(scr);
     lv_obj_set_size(btn_overtake, 140, 30);
     lv_obj_align(btn_overtake, LV_ALIGN_BOTTOM_LEFT, 10, -45);
     lv_obj_set_style_bg_color(btn_overtake,
@@ -168,28 +183,29 @@ void f1_dashboard_create(void) {
     lv_label_set_text(lbl_overtake, "OVERTAKE");
     lv_obj_center(lbl_overtake);
 
-    lv_obj_t *btn_drs = lv_btn_create(scr);
+    btn_drs = lv_btn_create(scr);
     lv_obj_set_size(btn_drs, 140, 30);
     lv_obj_align(btn_drs, LV_ALIGN_BOTTOM_RIGHT, -10, -45);
     lv_obj_set_style_bg_color(btn_drs,
         drs_enabled ? lv_color_hex(0x00ff00) : lv_color_hex(0xffcc00), 0);
     lv_obj_set_style_border_width(btn_drs, 0, 0);
+
     lv_obj_t *lbl_drs = lv_label_create(btn_drs);
     lv_label_set_text(lbl_drs, "DRS");
     lv_obj_center(lbl_drs);
 
     // === ERS ===
     int battery = 60;
-    lv_obj_t *ers_bar = lv_bar_create(scr);
-    lv_obj_set_size(ers_bar, 260, 12);
-    lv_obj_align(ers_bar, LV_ALIGN_BOTTOM_MID, 0, -10);
-    lv_bar_set_range(ers_bar, 0, 100);
-    lv_bar_set_value(ers_bar, battery, LV_ANIM_ON);
-    lv_obj_set_style_bg_color(ers_bar, lv_color_hex(0x333333), 0);
-    lv_obj_set_style_bg_grad_color(ers_bar, lv_color_hex(0x00ccff), 0);
-    lv_obj_set_style_border_width(ers_bar, 0, 0);
+    bar_batt = lv_bar_create(scr);
+    lv_obj_set_size(bar_batt, 260, 12);
+    lv_obj_align(bar_batt, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_bar_set_range(bar_batt, 0, 100);
+    lv_bar_set_value(bar_batt, battery, LV_ANIM_ON);
+    lv_obj_set_style_bg_color(bar_batt, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_grad_color(bar_batt, lv_color_hex(0x00ccff), 0);
+    lv_obj_set_style_border_width(bar_batt, 0, 0);
 
-    lv_obj_t *lbl_batt = lv_label_create(scr);
+    lbl_batt = lv_label_create(scr);
     char battery_txt[8];
     sprintf(battery_txt, "%d%%", battery);
     lv_label_set_text(lbl_batt, battery_txt);
